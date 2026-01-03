@@ -1,23 +1,48 @@
-require('dotenv').config();
-const express = require('express');
-const { createServer } = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
+import dotenv from 'dotenv';
+import express, { Request, Response } from 'express';
+import { createServer } from 'http';
+import { Server, Socket } from 'socket.io';
+import cors from 'cors';
+
+dotenv.config();
 
 const app = express();
 
-const PORT = process.env.PORT || 3000;
+const PORT: number = Number(process.env.PORT) || 3000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const LOBBY_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
+const AUTH_BASE_URL = process.env.AUTH_BASE_URL || '';
+const AUTH_REALM = process.env.AUTH_REALM || '';
+const AUTH_API_ID = process.env.AUTH_API_ID || '';
+const AUTH_API_SECRET = process.env.AUTH_API_SECRET || '';
+
 const corsOptions = {
-  origin: CORS_ORIGIN === '*' ? true : CORS_ORIGIN.split(','),
+  origin: CORS_ORIGIN === '*' ? true : (CORS_ORIGIN.split(',') as string[]),
   methods: ['GET', 'POST']
 };
 app.use(cors(corsOptions));
 app.use(express.json());
 
-app.get('/health', (req, res) => {
+type User = {
+  id: string;
+  name: string;
+  vote: string | null;
+  isObserver: boolean;
+};
+
+type Lobby = {
+  id: string;
+  host: string;
+  users: User[];
+  currentStory: string | null;
+  votesRevealed: boolean;
+  createdAt: number;
+};
+
+const lobbies: Map<string, Lobby> = new Map();
+
+app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', lobbies: lobbies.size });
 });
 
@@ -27,8 +52,6 @@ const io = new Server(httpServer, {
   pingTimeout: 60000,
   pingInterval: 25000
 });
-
-const lobbies = new Map();
 
 setInterval(() => {
   const now = Date.now();
@@ -41,10 +64,10 @@ setInterval(() => {
   });
 }, 60 * 60 * 1000);
 
-io.on('connection', (socket) => {
+io.on('connection', (socket: Socket) => {
   console.log('User connected:', socket.id);
 
-  socket.on('create-lobby', (data) => {
+  socket.on('create-lobby', (data: any) => {
     try {
       if (!data?.userName?.trim()) {
         socket.emit('error', { message: 'Username is required' });
@@ -52,7 +75,7 @@ io.on('connection', (socket) => {
       }
 
       const lobbyId = generateLobbyId();
-      const lobby = {
+      const lobby: Lobby = {
         id: lobbyId,
         host: socket.id,
         users: [{
@@ -76,7 +99,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('join-lobby', (data) => {
+  socket.on('join-lobby', (data: any) => {
     try {
       const { lobbyId, userName } = data || {};
       
@@ -85,7 +108,7 @@ io.on('connection', (socket) => {
         return;
       }
 
-      const lobby = lobbies.get(lobbyId.toUpperCase());
+      const lobby = lobbies.get(String(lobbyId).toUpperCase());
       
       if (!lobby) {
         socket.emit('error', { message: 'Lobby not found' });
@@ -97,7 +120,7 @@ io.on('connection', (socket) => {
         return;
       }
 
-      const user = {
+      const user: User = {
         id: socket.id,
         name: userName.trim().substring(0, 50),
         vote: null,
@@ -117,7 +140,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('submit-vote', (data) => {
+  socket.on('submit-vote', (data: any) => {
     try {
       const { lobbyId, vote } = data || {};
       if (!lobbyId) return;
@@ -139,7 +162,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('reveal-votes', (data) => {
+  socket.on('reveal-votes', (data: any) => {
     try {
       const { lobbyId } = data || {};
       if (!lobbyId) return;
@@ -161,7 +184,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('new-round', (data) => {
+  socket.on('new-round', (data: any) => {
     try {
       const { lobbyId, story } = data || {};
       if (!lobbyId) return;
@@ -202,7 +225,6 @@ io.on('connection', (socket) => {
           lobbies.delete(lobbyId);
           console.log(`Lobby closed (empty): ${lobbyId}`);
         } else if (lobby.host === socket.id) {
-          // Transfer host to next user
           lobby.host = lobby.users[0].id;
           console.log(`Host transferred in lobby: ${lobbyId}`);
         }
@@ -210,12 +232,12 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('get-lobby', (data) => {
+  socket.on('get-lobby', (data: any) => {
     try {
       const { lobbyId } = data || {};
       if (!lobbyId) return;
 
-      const lobby = lobbies.get(lobbyId.toUpperCase());
+      const lobby = lobbies.get(String(lobbyId).toUpperCase());
       
       if (lobby) {
         socket.emit('lobby-info', { lobby });
@@ -228,8 +250,8 @@ io.on('connection', (socket) => {
   });
 });
 
-function generateLobbyId() {
-  let id;
+function generateLobbyId(): string {
+  let id: string;
   do {
     id = Math.random().toString(36).substring(2, 8).toUpperCase();
   } while (lobbies.has(id));
