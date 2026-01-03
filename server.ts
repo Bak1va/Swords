@@ -12,11 +12,6 @@ const PORT: number = Number(process.env.PORT) || 3000;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const LOBBY_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
-const AUTH_BASE_URL = process.env.AUTH_BASE_URL || '';
-const AUTH_REALM = process.env.AUTH_REALM || '';
-const AUTH_API_ID = process.env.AUTH_API_ID || '';
-const AUTH_API_SECRET = process.env.AUTH_API_SECRET || '';
-
 const corsOptions = {
   origin: CORS_ORIGIN === '*' ? true : (CORS_ORIGIN.split(',') as string[]),
   methods: ['GET', 'POST']
@@ -102,14 +97,15 @@ io.on('connection', (socket: Socket) => {
   socket.on('join-lobby', (data: any) => {
     try {
       const { lobbyId, userName } = data || {};
-      
+
       if (!lobbyId || !userName?.trim()) {
         socket.emit('error', { message: 'Lobby ID and username are required' });
         return;
       }
 
-      const lobby = lobbies.get(String(lobbyId).toUpperCase());
-      
+      const canonicalId = String(lobbyId).toUpperCase();
+      const lobby = lobbies.get(canonicalId);
+
       if (!lobby) {
         socket.emit('error', { message: 'Lobby not found' });
         return;
@@ -128,12 +124,12 @@ io.on('connection', (socket: Socket) => {
       };
 
       lobby.users.push(user);
-      socket.join(lobbyId);
-      
+      socket.join(canonicalId);
+
       socket.emit('lobby-joined', { lobby });
-      socket.to(lobbyId).emit('user-joined', { user });
-      
-      console.log(`${user.name} joined lobby: ${lobbyId}`);
+      socket.to(canonicalId).emit('user-joined', { user });
+
+      console.log(`${user.name} joined lobby: ${canonicalId}`);
     } catch (err) {
       console.error('Error joining lobby:', err);
       socket.emit('error', { message: 'Failed to join lobby' });
@@ -145,14 +141,15 @@ io.on('connection', (socket: Socket) => {
       const { lobbyId, vote } = data || {};
       if (!lobbyId) return;
 
-      const lobby = lobbies.get(lobbyId);
+      const canonicalId = String(lobbyId).toUpperCase();
+      const lobby = lobbies.get(canonicalId);
       if (!lobby || lobby.votesRevealed) return;
 
       const user = lobby.users.find(u => u.id === socket.id);
       if (user) {
         user.vote = String(vote).substring(0, 10);
-        
-        io.to(lobbyId).emit('vote-submitted', {
+
+        io.to(canonicalId).emit('vote-submitted', {
           userId: socket.id,
           hasVoted: true
         });
@@ -167,12 +164,13 @@ io.on('connection', (socket: Socket) => {
       const { lobbyId } = data || {};
       if (!lobbyId) return;
 
-      const lobby = lobbies.get(lobbyId);
+      const canonicalId = String(lobbyId).toUpperCase();
+      const lobby = lobbies.get(canonicalId);
       if (!lobby) return;
 
       lobby.votesRevealed = true;
-      
-      io.to(lobbyId).emit('votes-revealed', {
+
+      io.to(canonicalId).emit('votes-revealed', {
         users: lobby.users.map(u => ({
           id: u.id,
           name: u.name,
@@ -189,14 +187,15 @@ io.on('connection', (socket: Socket) => {
       const { lobbyId, story } = data || {};
       if (!lobbyId) return;
 
-      const lobby = lobbies.get(lobbyId);
+      const canonicalId = String(lobbyId).toUpperCase();
+      const lobby = lobbies.get(canonicalId);
       if (!lobby) return;
 
       lobby.users.forEach(u => u.vote = null);
       lobby.currentStory = story ? String(story).substring(0, 500) : null;
       lobby.votesRevealed = false;
-      
-      io.to(lobbyId).emit('round-started', {
+
+      io.to(canonicalId).emit('round-started', {
         story: lobby.currentStory,
         users: lobby.users.map(u => ({
           id: u.id,
@@ -211,16 +210,16 @@ io.on('connection', (socket: Socket) => {
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    
+
     lobbies.forEach((lobby, lobbyId) => {
       const userIndex = lobby.users.findIndex(u => u.id === socket.id);
-      
+
       if (userIndex !== -1) {
         const user = lobby.users[userIndex];
         lobby.users.splice(userIndex, 1);
-        
+
         socket.to(lobbyId).emit('user-left', { userId: socket.id, userName: user.name });
-        
+
         if (lobby.users.length === 0) {
           lobbies.delete(lobbyId);
           console.log(`Lobby closed (empty): ${lobbyId}`);
@@ -237,8 +236,9 @@ io.on('connection', (socket: Socket) => {
       const { lobbyId } = data || {};
       if (!lobbyId) return;
 
-      const lobby = lobbies.get(String(lobbyId).toUpperCase());
-      
+      const canonicalId = String(lobbyId).toUpperCase();
+      const lobby = lobbies.get(canonicalId);
+
       if (lobby) {
         socket.emit('lobby-info', { lobby });
       } else {
@@ -246,6 +246,43 @@ io.on('connection', (socket: Socket) => {
       }
     } catch (err) {
       console.error('Error getting lobby:', err);
+    }
+  });
+
+  socket.on('kick-user', (data: any) => {
+    try {
+      const { lobbyId, userId } = data || {};
+      if (!lobbyId || !userId) return;
+
+      const canonicalId = String(lobbyId).toUpperCase();
+      const lobby = lobbies.get(canonicalId);
+      if (!lobby) return;
+
+      if (lobby.host !== socket.id) {
+        socket.emit('error', { message: 'Only the host can kick users' });
+        return;
+      }
+
+      if (userId === socket.id) {
+        socket.emit('error', { message: 'Cannot kick yourself' });
+        return;
+      }
+
+      const userIndex = lobby.users.findIndex(u => u.id === userId);
+      if (userIndex === -1) return;
+
+      const kickedUser = lobby.users[userIndex];
+      lobby.users.splice(userIndex, 1);
+
+      io.to(userId).emit('kicked', { lobbyId: canonicalId });
+
+      io.to(canonicalId).emit('user-left', { userId, userName: kickedUser.name });
+
+      socket.emit('lobby-updated', { lobby });
+
+      console.log(`${kickedUser.name} was kicked from lobby: ${canonicalId}`);
+    } catch (err) {
+      console.error('Error kicking user:', err);
     }
   });
 });
