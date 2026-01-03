@@ -16,7 +16,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd /var/www/poker/backend
+            cd /var/www/poker/backend/Swords
             git pull origin main
             npm install --omit=dev
             /home/github-deploy/node_modules/.bin/pm2 restart poker-backend || /home/github-deploy/node_modules/.bin/pm2 start server.js --name poker-backend
