@@ -5,8 +5,8 @@
   "scripts": {
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
-    "dev": "ts-node server.ts",
-    "start:dev": "nodemon --watch './**/*.ts' --exec 'ts-node' server.ts"
+    "dev": "ts-node src/server.ts",
+    "start:dev": "nodemon --watch 'src/**/*.ts' --exec 'ts-node' src/server.ts"
   },
   "author": "",
   "license": "ISC",
@@ -22,7 +22,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.25",
     "@types/node": "^20.19.27",
-    "nodemon": "^2.0.22",
+    "nodemon": "^3.1.11",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
