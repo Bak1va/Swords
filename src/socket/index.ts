@@ -182,6 +182,60 @@ export function initSocket(io: Server) {
       }
     });
 
+    socket.on('start-countdown', (data: any) => {
+      try {
+        const { lobbyId } = data || {};
+        if (!lobbyId) return;
+
+        const canonicalId = String(lobbyId).toUpperCase();
+        const lobby = lobbies.get(canonicalId);
+        if (!lobby) return;
+
+        if (lobby.host !== socket.id) return;
+
+        io.to(canonicalId).emit('countdown-started');
+        console.log(`Countdown started in lobby: ${canonicalId}`);
+      } catch (err) {
+        console.error('Error starting countdown:', err);
+      }
+    });
+
+    socket.on('select-issue', (data: any) => {
+      try {
+        const { lobbyId, issue } = data || {};
+        if (!lobbyId) return;
+
+        const canonicalId = String(lobbyId).toUpperCase();
+        const lobby = lobbies.get(canonicalId);
+        if (!lobby) return;
+
+        if (lobby.host !== socket.id) return;
+
+        io.to(canonicalId).emit('issue-selected', { issue });
+        console.log(`Issue selected in lobby: ${canonicalId}`);
+      } catch (err) {
+        console.error('Error selecting issue:', err);
+      }
+    });
+
+    socket.on('update-issues', (data: any) => {
+      try {
+        const { lobbyId, issues } = data || {};
+        if (!lobbyId) return;
+
+        const canonicalId = String(lobbyId).toUpperCase();
+        const lobby = lobbies.get(canonicalId);
+        if (!lobby) return;
+
+        if (lobby.host !== socket.id) return;
+
+        io.to(canonicalId).emit('issues-updated', { issues });
+        console.log(`Issues updated in lobby: ${canonicalId}`);
+      } catch (err) {
+        console.error('Error updating issues:', err);
+      }
+    });
+
     socket.on('disconnect', () => {
       console.log('User disconnected:', socket.id);
 
