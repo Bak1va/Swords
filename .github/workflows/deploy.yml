@@ -1,4 +1,4 @@
-name: Deploy Frontend
+name: Deploy Backend
 
 on:
   push:
@@ -8,25 +8,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Build Angular
-        run: |
-          npm ci
-          npm run build -- --configuration=production
-
-      - name: Deploy to server
-        uses: appleboy/scp-action@v0.1.7
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "dist/spades/browser/*"
-          target: "/var/www/poker/frontend"
-          strip_components: 3
-          rm: true
+          script: |
+            cd /var/www/poker/backend
+            git pull origin main
+            npm install --omit=dev
+            /home/github-deploy/node_modules/.bin/pm2 restart poker-backend || /home/github-deploy/node_modules/.bin/pm2 start server.js --name poker-backend
+            /home/github-deploy/node_modules/.bin/pm2 save
