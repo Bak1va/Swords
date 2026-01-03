@@ -18,9 +18,8 @@ jobs:
           script: |
             cd /var/www/poker/backend/Swords
             git pull origin main
-            # install all dependencies (including dev) so we can run the TypeScript build
             npm ci
             npm run build
-            # Ensure PM2 runs the compiled output
-            /home/github-deploy/node_modules/.bin/pm2 restart poker-backend || /home/github-deploy/node_modules/.bin/pm2 start dist/server.js --name poker-backend
+            /home/github-deploy/node_modules/.bin/pm2 delete poker-backend || true
+            /home/github-deploy/node_modules/.bin/pm2 start dist/server.js --name poker-backend
             /home/github-deploy/node_modules/.bin/pm2 save
