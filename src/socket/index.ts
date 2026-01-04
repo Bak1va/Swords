@@ -9,6 +9,7 @@ type User = {
 
 type Lobby = {
   id: string;
+  name?: string;
   host: string;
   users: User[];
   currentStory: string | null;
@@ -46,6 +47,7 @@ export function initSocket(io: Server) {
         const lobbyId = generateLobbyId(lobbies);
         const lobby: Lobby = {
           id: lobbyId,
+          name: data.gameName?.trim() || undefined,
           host: socket.id,
           users: [{
             id: socket.id,
