@@ -15,6 +15,8 @@ type Lobby = {
   currentStory: string | null;
   votesRevealed: boolean;
   createdAt: number;
+  currentIssue?: any;
+  issues?: any[];
 };
 
 const LOBBY_TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -57,7 +59,9 @@ export function initSocket(io: Server) {
           }],
           currentStory: null,
           votesRevealed: false,
-          createdAt: Date.now()
+          createdAt: Date.now(),
+          currentIssue: null,
+          issues: []
         };
 
         lobbies.set(lobbyId, lobby);
@@ -177,7 +181,9 @@ export function initSocket(io: Server) {
             id: u.id,
             name: u.name,
             vote: null
-          }))
+          })),
+          currentIssue: lobby.currentIssue,
+          issues: lobby.issues
         });
       } catch (err) {
         console.error('Error starting new round:', err);
@@ -213,6 +219,8 @@ export function initSocket(io: Server) {
 
         if (lobby.host !== socket.id) return;
 
+        lobby.currentIssue = issue;
+
         io.to(canonicalId).emit('issue-selected', { issue });
         console.log(`Issue selected in lobby: ${canonicalId}`);
       } catch (err) {
@@ -230,6 +238,8 @@ export function initSocket(io: Server) {
         if (!lobby) return;
 
         if (lobby.host !== socket.id) return;
+
+        lobby.issues = issues;
 
         io.to(canonicalId).emit('issues-updated', { issues });
         console.log(`Issues updated in lobby: ${canonicalId}`);
