@@ -175,16 +175,26 @@ export function initSocket(io: Server) {
         lobby.currentStory = story ? String(story).substring(0, 500) : null;
         lobby.votesRevealed = false;
 
-        io.to(canonicalId).emit('round-started', {
+        // IMPORTANT: Always preserve currentIssue and issues when starting a new round
+        // This prevents reverting to previous issue when voting is completed
+        const roundStartData: any = {
           story: lobby.currentStory,
           users: lobby.users.map(u => ({
             id: u.id,
             name: u.name,
             vote: null
-          })),
-          currentIssue: lobby.currentIssue,
-          issues: lobby.issues
-        });
+          }))
+        };
+
+        // Only include currentIssue and issues if they exist
+        if (lobby.currentIssue !== null && lobby.currentIssue !== undefined) {
+          roundStartData.currentIssue = lobby.currentIssue;
+        }
+        if (Array.isArray(lobby.issues) && lobby.issues.length > 0) {
+          roundStartData.issues = lobby.issues;
+        }
+
+        io.to(canonicalId).emit('round-started', roundStartData);
       } catch (err) {
         console.error('Error starting new round:', err);
       }
